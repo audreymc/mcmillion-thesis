@@ -1,23 +1,156 @@
-\chapter{A long chapter title test the distance to the quote} \label{chap:chap-4}
+\chapter{Results and Discussion} \label{chap:chap-4}
+\section{Overall Performance}
+\subsection{Real Data}
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/real_anomaly_boxplots.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Boxplots comparing the distributions of the coverage (left), average width (center left), MWI score (center right), and CWC (right) for the symbol, date pairs in the Real Anomaly test set.}
+        \label{fig:real_anomaly_boxplots}
+    \end{minipage}
+\end{figure} 
+
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/real_distshift_boxplots.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Boxplots comparing the distributions of the coverage (left), average width (center left), MWI score (center right), and CWC (right) for the symbol, date pairs in the Real Distribution Shift test set.}
+        \label{fig:real_distshift_boxplots}
+    \end{minipage}
+\end{figure} 
+
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/real_distshift_inextreme_viz.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Boxplots comparing the distributions of the coverage (left), average width (center left), MWI score (center right), and CWC (right) for the symbol, date pairs in the Real Distribution Shift (in Extreme) test set.}
+        \label{fig:real_distshift_boxplots}
+    \end{minipage}
+\end{figure} 
+
+\subsection{Synthetic Data}
+
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/sim_anomaly_boxplots.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Boxplots comparing the distributions of the coverage (left), average width (center left), MWI score (center right), and CWC (right) for the symbol, date pairs in the Simulated Anomaly test set.}
+        \label{fig:sim_anomaly_boxplots}
+    \end{minipage}
+\end{figure} 
+
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/sim_distshift_boxplots.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Boxplots comparing the distributions of the coverage (left), average width (center left), MWI score (center right), and CWC (right) for the symbol, date pairs in the Simulated Distribution Shift test set.}
+        \label{fig:sim_distshift_boxplots}
+    \end{minipage}
+\end{figure} 
+
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/sim_anom_distshift_boxplots.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Boxplots comparing the distributions of the coverage (left), average width (center left), MWI score (center right), and CWC (right) for the symbol, date pairs in the Simulated Anomaly + Distribution Shift test set.}
+        \label{fig:sim_anom_distshift_boxplots}
+    \end{minipage}
+\end{figure} 
+
+\section{Anomaly Sets}
 
 
-\begin{singlespace}
-    \epigraph{This is a large quote placed with \\ 
-    single spacing over two lines}{-- Unknown Author}
-\end{singlespace}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|>{\centering\arraybackslash}m{3.35cm}|
+                >{\centering\arraybackslash}m{2cm}|
+                >{\centering\arraybackslash}m{0.8cm}|
+                >{\centering\arraybackslash}m{0.9cm}|
+                >{\centering\arraybackslash}m{1.2cm}|
+                >{\centering\arraybackslash}m{0.9cm}|
+                >{\centering\arraybackslash}m{1.2cm}|
+                >{\centering\arraybackslash}m{0.9cm}|
+                >{\centering\arraybackslash}m{1.2cm}|}
+\hline
+\textbf{Model Name} & \textbf{Conformity Score} & \textbf{I} &
+\multicolumn{2}{c|}{\shortstack{\textbf{Real}\\\textbf{Anomaly}}} &
+\multicolumn{2}{c|}{\shortstack{\textbf{Synthetic}\\\textbf{Anomaly}}} &
+\multicolumn{2}{c|}{\shortstack{\\\textbf{}\textbf{Synthetic}\\\textbf{Dist. Shift}\\\textbf{\& Anomaly}}} \\
+\cline{4-9}
+ & & & \textbf{a} & \textbf{b} & \textbf{a} & \textbf{b} & \textbf{a} & \textbf{b} \\
+\hline
+\rowcolor{gray!25} AR(1)-GARCH(1,1) & - & - & 0.750 & 21.961 & 1.000 & 3.945 & 1.000 &  2.719 \\
+\hline
+OC & ResNorm & - & 0.850 & 26.597 & 1.000 & 3.802 & 1.000 &  2.719 \\
+NC & ResNorm & - & 0.875 & 28.628 & 1.000 & 3.904 & 0.992 &  2.758 \\
+DtACI & ResNorm & - & 0.800 & 19.813 & 1.000 & 3.467 & 0.992 & 2.553 \\
+DtACI & ResNorm & 50 & 0.825 & 19.985 & 1.000 & 3.562 & 0.992 &  2.536 \\
+DtACI & ResNorm & 100 & 0.825 & 20.269 & 1.000 & 3.600 & 0.992 &  2.572 \\
+DtACI & ResNorm & 150 & 0.825 & 20.472 & 1.000 & 3.609 & 0.992 &  2.583 \\
+\hline
+\rowcolor{gray!15} OC & Gamma & - & 0.300 & (80.890) & 0.129 & (11.515) & 0.258 &  (6.444) \\
+\rowcolor{gray!15} NC & Gamma & - & 0.325 & (44.673) & 0.171 & (10.018) & 0.275 &  (5.126) \\
+\rowcolor{gray!15} DtACI & Gamma & - & 0.225 & (84.769) & 0.043 & (11.387) & 0.192 &  (7.355) \\
+\hline
+\end{tabular}
+\caption{Comparison of anomaly detection rate (\textbf{a}) and average band distance (\textbf{b}) across models.}
+\label{tab:anom_results}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/anomaly_before_after_final.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Change in average coverage (left), in average mean width (center), and average MWI score (right) before and after the anomalous observation, by test set and model.}
+        \label{fig:anom_beforeafter_viz}
+    \end{minipage}
+\end{figure} 
 
 
-%% remove the following and add your chapter text here
-\section{A long section heading to test the distance before this}
 
-\blindtext
 
-\begin{figure}[ht]
-\begin{center}
-    \includegraphics[width=\textwidth, trim={6cm 5cm 6cm 5cm},clip,page=1] {chap4.pdf}
-    \caption{Here are some photos of ducks to make you feel happy in tough times.}
-    \label{fig:ducks}
-\end{center}
-\end{figure}
-
-\Blindtext[2]
+\section{Distribution Shift Sets}
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/distshift_before_after_final.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+         \caption{Change in average coverage (left), in average mean width (center), and average MWI score (right) before and after the distribution shift, by test set and model.}
+        \label{fig:distshift_beforeafter_viz}
+    \end{minipage}
+\end{figure} 

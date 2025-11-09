@@ -1,21 +1,220 @@
-\chapter{Chapter title goes here} \label{chap:chap-2}
+\chapter{Background} \label{chap:chap-2}
+This chapter will provide insight into each of the probabilistic and statistical concepts used in this thesis to design models that address the key challenge of anomaly detection under distribution shift in financial time series. Following the introductory section, the sections will be divided into subsections that highlight the essential theoretical background for these methods. In the final section, we briefly summarize the models that will be evaluated and introduce the corresponding evaluation criteria which will be analyzed in the Results section.
 
-%%%% OPTIONAL EPIGRAPH EXAMPLE
-\epigraph{Do not believe everything you see on the internet.}{-- Albert Einstein}
+\section{Construction of the Risk Metric}
+\subsection{Characterizing Volatility}
+
+\subsection{Defining the Metric}
+
+$$
+Y_t = \log \frac{H_t}{L_t} - \log \frac{H_{t-1}}{L_{t-1}}
+$$
+\section{Extreme Value Theory}
+\label{sec:extreme_val}
+Extreme value theory is commonly used for risk assessment and rare event analysis in financial applications. In this thesis, extreme value theory serves as the foundational framework for assessing the nature of extremal observations in financial time series. Extreme value distributions are used to model the peak values in a price series and quantify the likelihood of anomalous observations. However, stationarity assumption of extreme value theory for time series applications introduces a key challenge in effectively utilizing these models for regular, online anomaly detection applications in financial data. 
+
+\subsection{Extreme Value Distributions}
+ Extreme value distributions are the limiting distributions of the maximum or minimum of a sequence of independent and identically distributed (i.i.d.) random variables, $X_1, X_2, ...$ \cite{intermediate_prob_Gut}. That is, if we define the the random variable
+$Y_n = \max\{X_1, X_2, ..., X_n\}$ or $Y_n = \min\{X_1, X_2, ..., X_n\}$ with $n > 1$ and cumulative distribution function (cdf) $F_n(y)$, we have
+$$
+\lim_{n \rightarrow \infty} F_n(y) \rightarrow F(y)
+$$
+where $F(y)$ is the limiting distribution of $Y_n$ and is the CDF of an \textit{extreme value distribution} \cite{intermediate_prob_Gut}.
+
+\begin{theorem} \label{thm:fisher}
+(Fisher-Tippet-Gnedenko)
+There exist three types of extremal distributions \cite{intermediate_prob_Gut}:
+\[
+\left\{
+\begin{aligned}
+\textit{Fréchet: } &\quad \Phi_{\alpha}(y) = \exp\{-y^{-\alpha}\}, && y > 0, \ \alpha > 0 \\
+ \textit{Weibull:} &\quad \Psi_\alpha(y) = \exp\{-|y|^\alpha\} && y < 0, \alpha > 0\\
+\textit{Gumbel:}&\quad  \Lambda(y) = \exp\{ -e^{-y} \} && y \in \mathbf{R} 
+\end{aligned}
+\right.
+\]
+\end{theorem}
+These three types of extreme value distributions can be summarized in one parametric family as a \textit{generalized extreme value distribution} (GEV), given as follows:
+$$
+H_{\xi ; \mu, \sigma}(y) = \exp \left( - \left( 1 + \xi \cdot \frac{y-\mu}{\sigma} \right)^{-1/\xi} \right), \quad \xi, \mu \in \mathbf{R}, \; \sigma > 0 
+$$
+where $\mu$ is the location parameter, $\sigma$ is the scale parameter, and $\xi$ is the shape parameter.
+
+\subsection{Extreme Value Theory for Time Series}
+Although a foundational assumption of extreme value theory is that the extremal observations are derived from a sequence of i.i.d. random variables, the theory has been extended to time-series applications when the condition of stationarity holds. A time series is said to be strictly \textit{stationary} if the marginal joint distribution of the series is time-invariant \cite{brockwell2016introduction}. However, the condition of weak stationarity, which requires the unconditional mean or variance of the series to be time-invariant, is sufficient to apply extreme value theory to time series \cite{mikosch2024extreme}. 
+
+Leadbetter extended the results of Theorem~\ref{thm:fisher} to a stationary series $\{X_n\}$, allowing the extreme value theory to be applied to series with serially dependent structures. Supposing $n = k_n r_n$, we can divide the series $\{ X_n \}$ into $k_n$ distinct blocks of size $r_n$ as follows:
+$$
+\underbrace{X_1, ..., X_{r_n}}_{\text{Block } 1}, \underbrace{X_{r_n+1},...,X_{2_{r_n}}}_{\text{Block } 2},..., \underbrace{X_{(k_n-1)r_n+1}, ..., X_{k_n r_n}}_{\text{Block } k_n}
+$$
+The \textit{block-maxima}, i.e. $M_\ell = \max\{X_{(\ell - 1)r_n+1}, .., X_{\ell r_n}\}$ with $1 \leq \ell \leq k_n$, from this series asymptotically converges to a generalized extreme distribution clustering under \textit{mixing} and \textit{anti-clustering} conditions, modified for clustering of extremes which is captured via the extremal index parameter $\theta \in [0, 1]$  \cite{mikosch2024extreme}\cite{Leadbetter_extremes}. This result is formalized in Theorem~\ref{thm:mixing}, given below.  
+
+  
+\begin{theorem}\label{thm:mixing}
+Let $\{ X_n \}$ be a real-valued stationary sequence with marginal distribution $F$, and let $\{u_n\}$ be a sequence of constants. Define $M_n = \max\{X_1, \dots, X_n\}$. Let $0 \leq \tau < \infty$.  
+\begin{singlespace}
+Suppose the following conditions hold:
+\begin{enumerate}
+    \item \textit{Mixing ($D$):}
+    \[
+    P(M_n \le u_n) - \left( P(M_{r_n} \le u_n) \right)^{k_n} \longrightarrow 0
+    \quad \text{as } n \to \infty.
+    \]
+
+    \item \textit{Anti-clustering ($D'$):}
+    \[
+    \lim_{k \to \infty} \limsup_{n \to \infty} 
+    P \Big( \max_{t = k, \dots, r_n} X_t > u_n \ \Big| \ X_0 > u_n \Big) = 0.
+    \]
+\end{enumerate}
+\end{singlespace}
+Then, $P(M_n \leq u_n) \rightarrow e^{-\theta \tau}$ if and only if $n [1 - F(u_n) ] \rightarrow \tau$, where $\theta \in [0,1]$  is the \textit{extremal index} \cite{mikosch2024extreme} \cite{Leadbetter_extremes}.
+\end{theorem}
+
+Although this result allows for extreme value theory and the block-maxima method to be applied to a wide range of time series applications, the requirement of a weakly stationary series presents challenges when applying this theory to financial data, which is considered to be highly non-stationary \ref{Schmitt_2013}. This can lead to the observed extreme value distribution of the underlying financial series being time-dependent, or shifting as the underlying data generating process evolves over time. Hence, the direct application of extreme value theory for anomaly detection may be inadequate under frequent concept shift.
+
+\section{Classical Financial Time Series Models}
 
 
-%%%% MUST: if the chapter is a reprint or submitted paper, you must declare it
-%% you can use enumerate or itemize environment if you have more than one paper 
-%% \mybibexclude{} will exclude this citation from the final bibliography
-%% if this paper appears somewhere else then remove \mybibexclude{} command
 
-\begin{singlespace}         % you can also use `onehalfspace` to relax the spacing
-    This chapter is adapted from the following article with permission from <publisher>
-    
-    \fullcite{einstein}. \mybibexclude{einstein}
-\end{singlespace} 
+\subsection{Autoregressive Integrated Moving Average (ARIMA)}
+The most common time series model for a time series stationary in mean and variance, $\{ Y_t \}$, is an auto-regressive integrated moving average (ARMA) model. Under the assumption of weak stationarity\footnote{A process is \textit{weakly stationary} if the following three conditions hold: (i) $E[Y_t^2] < \infty$, (ii) $E[Y_t] = m$, and (iii) $\text{Cov}(Y_t, Y_{t+h}) = \gamma_Y(h)$ for all $t, h \in \mathbb{Z}$ where $ \gamma_Y(h)$ is the autocorrelation function of $\{Y_t\}$ \cite{francq2019garch}.}, the series is an ARMA$(p, q)$ process if
+$$
+Y_t = \underbrace{\phi_1 Y_{t-1} + ... + \phi_p Y_{t-p}}_{\text{AR}(p)} + \underbrace{\epsilon_t + \theta_1 \epsilon_{t-1} + ... + \theta_q \epsilon_{t-q}}_{\text{MA}(q)}  
+$$
+where $\epsilon_t, ..., \epsilon_{t-q} \sim \text{N}(0, \sigma^2)$ are i.i.d. white noise error terms or \textit{innovations} \cite{brockwell2016introduction}. The integrated  (I) term of the full ARIMA model is the order of differencing required for $\{Y_t\}$ to be weakly stationary, which is typically verified using statistical tests such as the Dickey Fuller test. Hence, an ARIMA($p,d,q$) process consists of three basic parts: (1) the autoregressive or AR($p$) portion that models the dependence relationship between the current observation and lagged observations, (2) the differenced or integrated portion specified by the parameter $d$, and (3) the moving average or MA($q$) portion which ``considers the dependence that may exist between observations and the error terms'' \cite{fi15080255}.
+
+\subsection{Autoregressive Conditional Heteroskedasticity (ARCH)}
+Although widely used in econometrics, ARIMA models are generally inadequate for modeling financial time series due to the requirement that the innovations $\{ \epsilon_t \}$ are i.i.d which then implies that $\text{Var}(\epsilon_t | \epsilon_{t-1}, \epsilon_{t-2}, ...)  = 0$. Financial time series, on the other hand, generally have the property of \textit{conditional heteroskedasticity}, or non-constant conditional variance, which can be observed through the phenomena of \textit{volatility clustering} where large absolute returns appear in clusters \cite{francq2019garch}. Given this, models of the conditional variance of these series are widely studied in financial mathematics and are particularly relevant for risk-related applications. The family of autoregressive conditional heteroskedastic (ARCH) models has become the standard liner model for the conditional variance of a financial return time series $Y_t = \log(p_t/p_{t-1})$ \cite{francq2019garch}. The simplest of these, the ARCH($p$) model, is specified as
+$$
+\text{Var}(Y_t | Y_{t-1}, ..., Y_{t-p} ) = h_t^2 = \alpha_0 + \alpha_1 Y_{t-1}^2 + ... + \alpha_p Y_{t-p}^2
+$$
+where $Y_t = h_t \epsilon_t$ and $\epsilon_t \sim \text{i.i.d } N(\mu=0 , \sigma^2 = 1)$ \cite{brockwell2016introduction}. In particular, $h_t^2$ represents the \textit{volatility} of the return series $\{Y_t\}$.   
+
+The generalized ARCH or GARCH model then expands on the above formulation via the incorporation of the lagged volatility terms, $\{h_t\}$, as dependent variables. Hence, a GARCH$(p,q)$ model is specified as 
+$$
+h_t^2 = \alpha_0 + \sum_{i=1}^p \alpha_i Y_{t-i}^2 + \sum_{i=1}^q \beta_i h_{t-i} \;\; \text{\cite{brockwell2016introduction}}
+$$
+Lastly, a key assumption of each of these models is that $Y_t$ has constant zero mean, or $E[Y_t | Y_{h}, \; h < t] = 0$ \cite{francq2019garch}.
+
+\subsection{ARMA-GARCH}
+The ARMA-GARCH model is a natural extension of both the ARMA models of a mean process and GARCH models of conditional volatility for financial time series. A simple AR(1)-GARCH(1,1) is specified as follows:
+$$
+\begin{aligned}
+y_t &= a_0 + a_1 y_{t-1} + \epsilon_t \\
+\sigma_t^2 &= \alpha_0 + \alpha_1 \epsilon_{t-1}^2 + \beta \sigma_{t-1}^2
+\end{aligned}
+$$
+
+Return residuals (net of a mean process)
+
+\subsection{Value-at-Risk}
+
+\section{Distribution-free Models}
+\subsection{An Introduction to Conformal Inference}
+\label{conformal_intro}
+In split conformal prediction, a size $n$ dataset, $\{ (X_1, Y_1), ..., (X_n, Y_n) \}$ is split into two smaller sets of size $n_0$ and $n_1$, $n=n_0+n_1$ \cite{barber2020limitsdistributionfreeconditionalpredictive}. The size $n_0$ is used to train any base regression model, $\hat{\mu}_{n_0}$, and then for the remaining $n_1$ samples, $X_i \in \{ X_{n_0+1}, ..., X_n \}$, we compute $\hat{\mu}_{n_0}(X_i)$ \cite{barber2020limitsdistributionfreeconditionalpredictive}. A \textit{conformity score}, $R_i(X_i, Y_i)$, is then chosen to assess the degree of deviation of $\hat{\mu}_{n_0}(X_i)$ from $Y_i$, commonly $R_i(X_i, Y_i) = |\hat{\mu}_{n_0}(X_i)-Y_i|$, resulting in the set $\mathcal{R} = \{ R_{n_0+1}(X_{n_0+1}, Y_{n_0+1}), ..., R_n(X_n, Y_n) \}$ \cite{gibbs2021adaptiveconformalinferencedistribution} \cite{barber2020limitsdistributionfreeconditionalpredictive}. We then define the fitted quantiles of these conformity scores as 
+$$
+\hat{Q}(p) := \inf \left\{ r: \left( \frac{1}{n_1} \sum_{R_i(X_i, Y_i) \in \mathcal{R}} \mathbbm{1}_{R_i(X_i, Y_i) \leq r} \right) \leq p \right\} \;\;\; \text{\cite{gibbs2021adaptiveconformalinferencedistribution} \cite{barber2020limitsdistributionfreeconditionalpredictive}}
+$$
+From there, we choose a confidence level $\alpha$, e.g. $\alpha=0.05$, and construct a $(1-\alpha)\cdot 100\%$ confidence interval for a new observation $(X_{n+1}, Y_{n+1})$ as 
+$$
+\hat{C}_n(X_{n+1}, \alpha) = \Big[ \hat{\mu}_{n_0}(X_{n+1}) - \hat{Q}(1-\alpha), \hat{\mu}_{n_0}(X') + \hat{Q}(1-\alpha) \Big] \;\;\; \text{\cite{gibbs2021adaptiveconformalinferencedistribution} \cite{barber2020limitsdistributionfreeconditionalpredictive}}
+$$ 
+Papadopoulos, et. al proved that, given the distribution of the data points $(X_i, Y_i)$ is drawn from any i.i.d distribution $\mathbf{P}$, \textit{marginal coverage} is guaranteed, i.e.
+$$
+P\left( Y_{n+1} \in \hat{C}_n (X_{n+1}) \right) \geq 1-\alpha \;\;\; \text{\cite{10.1007/3-540-36755-1_29} \cite{barber2020limitsdistributionfreeconditionalpredictive}}
+$$
+This result was particularly impactful as it allowed marginally valid confidence intervals to be constructed for any regression model without any assumptions about the underlying distribution and only under the requirement of exchangability of the data.  
 
 
-%%%% remove the following and add your chapter text here
-\section{Introduction}
-\Blindtext[2]
+\subsection{Adaptive Conformal Inference (ACI)}
+\label{aci_background}
+Despite its elegance, the assumption of exchangability in split conformal prediction is impractical for online settings where concept shifts are frequent and the process is time-dependent, as is common with financial time series. To address the limitations of the standard split conformal method, Gibbs and Candès introduced adaptive conformal inference (ACI). ACI applies conformal inference to online settings by introducing a method for updating the confidence level $\alpha_t$ at timestep $t$ based on the miscoverage rate of prior observations \cite{gibbs2021adaptiveconformalinferencedistribution}. Assuming that $\hat{Q}(p)$ is re-estimated at each new observation (resulting in the corresponding function $\hat{Q}_t(p)$ at timestep $t$) and initializing $\alpha_0 = \alpha$ as our desired miscoverage rate, we define the error at timestep $t$ as
+$$
+\text{err}_t := \begin{cases}
+1 & \text{if } Y_t \notin \hat{C}_t(X_t, \alpha_t) \\
+0 & \text{otherwise}
+\end{cases}
+$$
+for observation $(X_t, Y_t)$ \cite{gibbs2021adaptiveconformalinferencedistribution}. Using this, $\alpha_{t+1}$ is then estimated to be 
+$$
+\alpha_{t+1} = \alpha_t + \gamma \left( \alpha - \text{err}_t \right) \; \text{ or } \;
+\alpha_{t+1} = \alpha_t + \gamma \left( \alpha - \sum_{s=1}^t w_s \text{err}_s \right)
+$$
+where $\gamma >0$ is a step-size hyperparameter and $\{w_s\}_{1\leq s \leq t} \in [0, 1]$ is a sequence of increasing weights with $\sum w_s =1$ \cite{gibbs2021adaptiveconformalinferencedistribution}. The weights $\{w_s\}_{1\leq s \leq t}$ are utilized to incorporate recent miscoverage frequencies in the update step, and two formulations were found to produce similar results in practice in \cite{gibbs2021adaptiveconformalinferencedistribution}. Further, the choice of $\gamma$ correlates with the magnitude of the distribution shift, with greater values of $\gamma$ making the algorithm ``more adaptive to observed distribution shifts'' while also leading to greater variability in the value of value of $\alpha_t$ \cite{gibbs2021adaptiveconformalinferencedistribution}.
+  
+Proposition~\ref{coverage-proposition}, given below and proven by Gibbs and Candès in \cite{gibbs2021adaptiveconformalinferencedistribution}, guarantees that ACI achieves the desired coverage $\alpha$ in the long term without the regard to the underlying data generating process.
+\begin{proposition}\label{coverage-proposition}
+With probability one, we have that for all $T \in \mathbb{N}$,
+\[
+\left| \frac{1}{T} \sum_{t=1}^T \text{err}_t - \alpha \right| 
+\leq \frac{\max\{ \alpha_1,\, 1 - \alpha_1 \} + \gamma}{T_\gamma}.
+\]
+In particular, $\lim_{T \rightarrow \infty} \frac{1}{T} \sum_{t=1}^T err_t \overset{a.s.}{=} \alpha$ \cite{gibbs2021adaptiveconformalinferencedistribution}.
+\end{proposition}
+
+\subsection{Dynamically-tuned Adaptive Conformal Inference (DtACI)}
+To improve upon the ACI model, Gibbs and Candès introduced the dynamically-tunded adaptive conformal inference (DtACI) model that adaptively tunes the step-size hyperparameter $\gamma$, eliminating the requirement for a priori knowledge of the magnitude and scale of distributions shifts in the data \cite{gibbs2023conformalinferenceonlineprediction}. In DtACI, a candidate set of $\gamma$ values,  $\{ \gamma_i\}_{1 \leq i \leq k}$,  are considered at each timestep and are used to construct a ``corresponding candidate set of values for $\alpha_t$  by running multiple versions of ACI in parallel'' \cite{gibbs2023conformalinferenceonlineprediction}.  
+  
+With reference to the ACI algorithm introduced in Subsection~\ref{aci_background}, we recall that at each timestep $t=1, 2, .., T$, the coverage parameter $\alpha_t$ is dynamically tuned via the update step $\alpha_{t+1} = \alpha_t + \gamma \left( \alpha - \text{err}_s \right)$ in the ACI algorithm. In DtACI, this iterative update scheme is considerably more intricate.  
+
+Prior to initialization of DtACI, the set of observed values $\{\beta_t\}_{1 \leq t \leq T}$ where $\beta_t := \sup \{ \beta: Y_t \in \hat{C}_t(\beta) \}$ are computed. This set gives ``the value of $\beta$ such that   $\hat{C}_t(\beta_t)$ is the smallest prediction set containing $Y_t$'' \cite{gibbs2023conformalinferenceonlineprediction}. Further, we define the \textit{pinball loss} as
+$$
+\ell(\beta_t, \alpha_t) := \alpha(\beta_t - \alpha_t) - \min \{ 0, \beta_t - \alpha_t \} 
+$$
+Lastly, we define the set of candidate $\gamma$ values $\{\gamma_i\}_{1\leq i \leq k}$ and the set of initial coverage parameters $\{\alpha_1^i\}_{1 \leq i \leq k}$, as well as introduce two new hyperparamters $\sigma$ and $\eta$. 
+Lastly, we initialize a set of weights $\{w_1^i\}_{1 \leq i \leq k}$ to 1. The algorithm to adaptively update $\alpha_t$ while concurrently tuning $\gamma$ depending on the magnitude of the distribution shift then proceeds as outlined in Algorithm~\ref{dtaci_algo} given below.
+
+\begin{singlespace}
+\begin{algorithm}[H]
+ \caption{DtACI, Algorithm 2 in \cite{gibbs2023conformalinferenceonlineprediction}}
+\label{dtaci_algo}
+ \KwData{Observed values $\{\beta_t\}_{1 \leq t \leq T}$, set of candidate $\gamma$ values $\{\gamma_i\}_{1 \leq i \leq k}$, starting points $\{\alpha_1^i\}_{1 \leq i \leq k}$, and parameters $\sigma$ and $\eta$.}
+ $w^i_1 \leftarrow 1,\ 1 \leq i \leq \in k$\;
+ \For{$t=1,2,\dots,T$}{
+ 	Define the probabilities $p_t^i := w^i_t/\sum_{1 \leq j \leq k}w^{j}_t$, $\forall 1 \leq i \leq k$\;
+ 	Output $\bar{\alpha}_t =  \sum_{1 \leq i \leq k} p_t^i\alpha^i_t$\;
+ 	$\bar{w}^i_t \leftarrow w^i_t \exp(-\eta \ell(\beta_t,\alpha_t^i)),\ \forall1 \leq i \leq k$\;
+ 	$\bar{W}_t \leftarrow \sum_{1 \leq i \leq k} \bar{w}^i_t $\;
+ 	$w^i_{t+1} \leftarrow (1-\sigma) \bar{w}^i_t + \bar{W}_t \sigma/k$\;
+ 	$\text{err}^i_{t} := \bone\{Y_t \notin \hat{C}_t(\alpha^i_t)\}$, $\forall 1 \leq i \leq k$\;
+ 	$\text{err}_{t} := \bone\{Y_t \notin \hat{C}_t(\bar{\alpha}_t)\}$\;
+ 	$\alpha^i_{t+1} = \alpha^i_{t} + \gamma_i(\alpha - \text{err}^i_{t})$, $\forall 1 \leq i \leq k$\;
+ }
+\end{algorithm}
+\end{singlespace}
+
+As can be observed from Algorithm~\ref{dtaci_algo}, the main innovation of DtACI is that it produces a candidate $\alpha_t$ at each timestamp that is a probabilistic weighted average of multiple candidate miscoverage rates, or the values $\alpha_t^i$.  
+
+Although DtACI introduces the two new hyperparameters $\sigma$ and $\eta$ in order to ultimately eliminate the necessity of the step-size parameter $\gamma$, Gibbs and Candès provide approximations for these hyperparameters that are only dependent on an interval of fixed length $|I|$, where a larger choice of $|I|$ gives ``a tighter bound at the cost of weaker local guarantees'' \cite{gibbs2023conformalinferenceonlineprediction}. Hence, the recommended values for $\sigma$ and $\eta$ provided by Gibbs and Candès derived from $|I|$, which are theoretically justified by Theorem 4 in \cite{gibbs2023conformalinferenceonlineprediction}, are
+$$
+\sigma = \frac{1}{(2|I|)} \;\; \text{ and } \l\; \eta = \sqrt{ \frac{\log ( 2k |I| ) + 1 }{ \sum_{t=r}^s \mathbf{E} [ \ell (\beta_t, \alpha_t)^2]} }
+$$
+where 
+$$
+\frac{1}{|I|} \sum_{t=r}^s \mathbf{E} [ \ell (\beta_t, \alpha_t)^2] \approx \frac{(1-\alpha)^2 \alpha^2}{3}
+$$
+\subsection{Conformity Scores}
+\label{subsection:conformity_scores}
+The performance of any of the conformal methods discussed in prior subsections is highly dependant on the chosen \textit{conformity score} for the model. The absolute residual score, $R_i(X_i-Y_i) = | \hat{\mu}_{n_0} (X_i) - Y_i|$, was introduced briefly in Subsection~\ref{conformal_intro}. We now introduce two additional conformity scores that are commonly utilized in conformal inference, the gamma score and the residual normalized score. 
+  
+Gamma score (source)
+$$
+\frac{|Y-\hat{\mu}(X)|}{\hat{\mu}(X)}
+$$
+This gives way to adaptive intervals with the following formula:
+$$
+[\hat{\mu}(X) \cdot ( 1 - q(s) ), \hat{\mu}(X) \cdot (1 + q(s))]
+$$
+where $q(s)$ is the $(1-\alpha)$ quantile of the conformity scores.
+
+Residual-normalized score
+$$
+\frac{|Y-\hat{\mu}(X)|}{\hat{\sigma}(X)}
+$$
+The intervals are then constructed as 
+$$
+[\hat{\mu}(X) - q(s) \cdot \hat{\sigma}(X), \hat{\mu}(X) + q(s) \cdot \hat{\sigma}(X)]
+$$
+

@@ -1,29 +1,306 @@
-\chapter{Chapter title goes here} \label{chap:chap-3}
+\chapter{Methods} 
+\label{chap:chap-3}
+In this chapter, we will discuss the application of the various concepts introduced in Chapter~\ref{chap:chap-2} to real and synthetic financial datasets, with the objective of assessing the performance of conformal models in equity market data under distribution shift, during an anomalous event, or in combination. First, we provide background on the empirical and synthetic datasets used in this study, explaining how each captures or replicates the specific market events and conditions of interest. Next, we will describe the algorithms used to identify symbols and time periods of interest in the empirical data and describe the algorithms used in the generation of the synthetic datasets. This is followed by notes on model customizations and specifications for this application that deviate from the algorithms introduced in Chapter~\ref{chap:chap-2}. Finally, we outline the methods for evaluating the performance of each model across each of the datasets.
+\section{Data}
+\subsection{Empirical Data}
+\label{subsec:empirical_data}
+In order to assess the performance of conformal models for financial time series under distribution shift or anomalous events that may represent pump-and-dump-style manipulations, we collect sets of symbols and date ranges where these phenomena are observable with high confidence. In particular, we curate sample sets that contain symbol and date range pairs that either contain anomalous observations (the ``anomaly set'') or undergo a distribution shift (the ``distribution shift set''). As a primary data source, we rely on the Wharton Research Data Services (WRDS) Daily Stock File (\texttt{dsf\_v2}) dataset, which contains interday metrics, such as open price, close price, high price, low price, and daily volume, for U.S. equities between December 31, 1925 and December 31, 2024. The primary columns that we utilize for each of these datasets are date (\texttt{dlycaldt}), symbol identifier (\texttt{cusip}), daily high price (\texttt{dlyhigh}), and daily low price (\texttt{dlylow}). Furthermore, we utilize historical limit up-limit down\footnote{The Limit Up-Limit Down (LULD) plan was established in national securities exchanges in 2012 to protect against extraordinary volatility in U.S. equity markets. This was achieved via specifying variable price bands for National Market System (NMS) securities intraday \cite{nasdaq2020luld}. If breached, the stock will be halted from trading for a 5-minute-long period, known as a \textit{LULD pause}.} and trade halt datasets sourced from the Nasdaq and New York Stock Exchange (NYSE) archives to identify symbols and dates where unusual intraday volatility is observed, as this can be indicative of either phenomena.   
+
+\subsubsection{Anomaly Set}
+In curating the anomalous set, we begin by observing the quantity of interday equity price data is vast and anomalies are, by nature, rare. Hence, it was necessary to approach the identification of a subset of dates and symbols that covered the anomalous price movements of interest (i.e. pump-and-dump-style manipulations) largely programatically. Broadly speaking, the procedure for identifying anomalous observations relied on fitting extreme value distributions to a range of symbols and dates that were initially identified from historic LULD pause data utilizing the block-over-maxima method described in Section~\ref{sec:extreme_val}. From these fitted distributions, we isolated symbol-date pairs where the difference between the daily high and daily low prices on the date were considered to be extreme based on an anomaly score assigned from the distribution. The scored symbol, date pairs were then manually sorted and filtered based on severity of the anomaly score, the symbols' average daily number of trades, and the fit of the extreme value distribution. This subset of symbol, date pairs were then inspected manually using a custom intraday price visualization chart. Further, as part of the manual inspection, we searched for news related to the individual stock or industry on dates where extreme values were identified in order to exclude those from the anomalous set.
+
+The procedure for curating the anomaly set is outlined in full detail in Algorithm~\ref{empirical_anomaly_algo}, which ran on a total of 17,467 symbol, date pairs between May 10, 2013 and December 6, 2023.
+
+\begin{singlespace}
+\begin{algorithm}[H]
+\caption{Empirical Anomaly Identification}
+\label{empirical_anomaly_algo}
+\KwIn{LULD pause dataset $\mathcal{D} = \{(s_i, t_i)\}_{i=1}^N$, where $s_i$ is a stock symbol and $t_i$ is the LULD pause date}
+\KwOut{Sorted set of potential anomalous $(s_i, t_i)$ pairs for manual evaluation}
+$\mathcal{R} \gets $ [ ]\;
+\ForEach{$(s, t)$ in $\mathcal{D}$}{
+    $\textit{before\_date} \gets$ 100 trading days before $t$\;
+    $\textit{after\_date} \gets$ 100 trading days after $t$\;
+
+    $\textit{interday\_df} \gets$ query daily trade data for symbol $s$ from \texttt{dsf\_v2} 
+    between $\textit{before\_date}$ and $\textit{after\_date}$\;
+
+    \ForEach{row $r$ in $\textit{interday\_df}$}{
+        $r.\textit{dlyhighlowdiff} \gets r.\textit{dlyhigh} - r.\textit{dlylow}$\;
+        }
+    $x_t \gets \textit{interday\_df[t].dlyhighlowdiff}$ \;
+    Fit an EV distribution, $F_{\text{EV}}$, to 
+    $\textit{interday\_df.dlyhighlowdiff}$\;
+    
+    Run a Kolmogorov-Smirnov test to assess the goodness-of-fit of $F_{\text{EV}}$, resulting in an associated KS statistic, $D$, and p-value, $p$\;
+    $\textit{anomaly\_score} \gets 1 - F_{\text{EV}}(x_t)$ \;
+
+    $\textit{avg\_trades} \gets$ mean(\textit{interday\_df.dlynumtrd})\;
+
+    $\textit{result\_dict} \gets \{ 
+        s, t, D, p, x_t, \textit{avg\_trades}
+    \}$\;
+
+    $\mathcal{R} \overset{+}{\leftarrow} \textit{result\_dict}$ \;
+}
+
+Filter $\mathcal{R}$ such that $p > 0.05$, $\textit{anomaly\_score} < 0.05$, 
+and $\textit{avg\_trades} > 100$\;
+
+Sort filtered $\mathcal{R}$ by $\textit{anomaly\_score}$ (ascending)\;
+
+\Return sorted $\mathcal{R}$
+\end{algorithm}
+\end{singlespace}
 
 
-% epigraph after chapter heading
-\epigraph{Since it is written in \LaTeX, it must be true.}{-- Isaac Newton}
+
+This procedure resulted in an initial set of 70 potential symbol, date pairs where we could test the models summarized in Section~\ref{sec_models}. Ultimately, this set was reduced to 40 symbol, date pairs where sufficient trading data is available for experimentation. 
+
+An example of an symbol, date pair that we included in the real anomaly dataset is HARP on December 12, 2022. Figure~\ref{fig:anom_obs}, given below, illustrated the abnormal difference between the daily high and the daily low price in the stock on December 12, 2022 with reference to the surrounding 30 trade dates. Each of the symbol, date pairs included in the real anomaly sample set are listed in Appendix A.
+\begin{figure}[H]
+    \centering
+    % Adjust fboxsep to 1pt for a skinny border
+    \setlength{\fboxsep}{1pt}
+    \fbox{\includegraphics[width=\textwidth]{figures/real_anomaly_data_viz.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Interday trade price (top) and volume (bottom) in HARP surrounding 12/12/2022, illustrating a potential short-lived pump-and-dump pattern.}
+        \label{fig:anom_obs}
+    \end{minipage}
+\end{figure} 
 
 
-%%%% MUST: add the citation for the chapter if it is a reprint
+\subsubsection{Distribution shift set} 
+The methodology for selecting a subset of symbols and date tuples with observable distribution shifts is more straightforward given that an initial sample set can be isolated from a major market event. In this case, we chose to select a subset of symbols that experienced LULD volatility halts during the early stages of the COVID-19 pandemic circa February and March 2020, isolating those that experienced measurable distribution shifts during this period as candidates for the real distribution shift dataset. In order to quantify and verify the distribution shift, we utilize a simple algorithm that employs the non-parametric Kolmogorov–Smirnov (KS) test to determine whether the distribution of the symbol's $\log(H/L)$ before and the distribution after a cutoff date of February 1, 2020 are statistically dissimilar.  
+
+After identifying the COVID-19 pandemic as the time period of interest and filtering the LULD pause dataset for symbols that had LULD halts between February 15, 2020 and March 3, 2020, we were left with 1,152 candidate distribution shift symbols. We further narrow this subset to produce a set of 242 candidate symbols in the distribution shift set utilizing Algorithm~\ref{empirical_anomaly_algo}, given below. 
+
+\begin{singlespace}
+\begin{algorithm}[H]
+\caption{Empirical Distribution Shift Identification}
+\label{empirical_distshift_algo}
+\KwIn{Set of symbols $\mathcal{D} = \{s_i\}_{i=1}^M$ that halted under the LULD mechanism between February 15, 2020 and March 3, 2020}
+\KwOut{Subset of symbols $\mathcal{C} = \{s_i\}_{i=1}^P$, $P \leq M$, that underwent distribution shift during this period}
+
+\SetKwData{CutoffDate}{cutoff\_date}
+\SetKwData{SigLevel}{sig\_level}
+\SetKwData{InterdayDF}{interday\_df}
+\SetKwData{BeforeDF}{before\_df}
+\SetKwData{AfterDF}{after\_df}
+\SetKwData{LogDiff}{log\_highlow\_diff}
+\SetKwData{KSP}{ks\_p}
+\SetKwData{KSIdentical}{ks\_identical}
+\SetKwData{BeforeDate}{before\_date}
+\SetKwData{AfterDate}{after\_date}
+\CutoffDate $\gets$ February 1, 2020\;
+\SigLevel $\gets 0.05$\;
+\BeforeDate $\gets$ 60 trading days before \CutoffDate \;
+\AfterDate $\gets$ 60 trading days after \CutoffDate\;
+
+\ForEach{$s \in \mathcal{D}$}{
+    
+    \InterdayDF $\gets$ query daily trade data for symbol $s$ from \texttt{dsf\_v2} between \BeforeDate and \AfterDate\;
+    \InterdayDF.$\textit{log\_highlow\_diff} \gets$ $\log($\InterdayDF.$\textit{dlyhigh})-$ $\log($\InterdayDF.$\textit{dlylow})$\; 
+    \BeforeDF $\gets$ \InterdayDF[\InterdayDF.\textit{date} $\leq$ \CutoffDate]\;
+    \AfterDF  $\gets$ \InterdayDF[\InterdayDF.\textit{date} $>$ \CutoffDate]\;
+    Run a Kolmogorov–Smirnov (KS) test between \BeforeDF.$\textit{log\_highlow\_diff}$ and \AfterDF.$\textit{log\_highlow\_diff}$. Store the resulting p-value in \KSP. 
+    \KSIdentical $\gets$ \textbf{True} if \KSP $\geq$ \SigLevel \textbf{ else False}\;
+}
+
+Filter resulting dataset where \KSIdentical = \textbf{False} to obtain the final set of symbols, $\mathcal{C}$ \;
+
+\Return $\mathcal{C}$
+\end{algorithm}
+
+\end{singlespace}
+
+Following the initial identification of a distribution shift set using the above algorithm, we further extend our simple characterization of distribution shift to those that underwent distributions shifts \textit{in extreme}. That is, we seek to further subdivide the distribution shift set by identifying symbols that also experienced a shift in their extreme value distributions before and after the COVID-19 market events in early 2020. This subdivision allows us to examine how conformal models perform in scenarios where the assumptions for the appropriate use of extreme value theory in anomaly detection, such as stationarity, break. 
+
+In order to quantify distribution shifts \textit{in extreme} from our existing set of symbols, we fit generalized extreme value (GEV) distributions using the block-over-maxima method to rolling intervals of 200 trade dates spanning the symbol's history from initial public offering (IPO) date until mid-2020. Those symbols that experienced significant distributional divergence in their fitted GEV distributions in the first half of 2020 as compared to prior date ranges, quantified using the Kullback-Leiber (KL) divergence score with a minimum value of 0.5, are then made members of the extremal distribution shift subset. This method is outlined in greater detail in Algorithm~\ref{empirical_distshift_inextreme_algo}, given below. From the 242 symbols  previously identified as members of the distribution shift set, we identify a subset of 75 symbols that fit the criteria of quantifiable distribution shift in extreme during early 2020 using this methodology. This subset will ultimately provide supplemental analysis to the results derived from the greater distribution shift set.
+
+\begin{singlespace}
+\begin{algorithm}[H]
+\caption{Extremal Empirical Distribution Shift Identification}
+\label{empirical_distshift_inextreme_algo}
+\KwIn{Symbols $\mathcal{D} = \{s_i\}_{i=1}^N$ in the Distribution Shift Set}
+\KwOut{Subset $\mathcal{C} = \{s_i\}_{i=1}^B$, $B \leq N$, exhibiting extremal distribution shift during early 2020}
+
+\SetKwData{Cutoff}{cutoff\_date}
+\SetKwData{Chunk}{chunk\_size}
+\SetKwData{Step}{chunk\_increment}
+\SetKwData{Block}{block\_size}
+\SetKwData{PrevGEV}{prev\_gev}
+\SetKwData{CurrGEV}{curr\_gev}
+\SetKwData{KL}{kl\_divergence}
+\SetKwData{InterdayDF}{interday\_df}
+
+\Cutoff $\gets$ Apr 29, 2020; \Chunk $\gets 200$; \Step $\gets 10$; \Block $\gets 5$\;
+
+\ForEach{$s \in \mathcal{D}$}{
+    Retrieve \InterdayDF for $s$ from \texttt{dsf\_v2} (IPO date $\to$ \Cutoff)\;
+    Assign \InterdayDF.$\textit{log\_highlow\_diff} \gets$ $\log($\InterdayDF.$\textit{dlyhigh})-$ $\log($\InterdayDF.$\textit{dlylow})$\;
+    Initialize \PrevGEV $\gets$ None\;
+    Define \textit{chunk\_start} = IPO date and \textit{chunk\_end} = IPO date + \ChunkSize days\;
+    
+    \While{$\textit{chunk\_end} < \Cutoff$}{
+        Fit GEV($c,\sigma,\mu$) to block maxima ($\textit{block}=\Block$)\;
+        Obtain p-value from goodness-of-fit test\;
+        \CurrGEV $\gets \{c,\sigma,\mu,p\text{-value}\}$\;
+        \KL $\gets$ \textbf{NaN} if \PrevGEV = None, else $D_{KL}(GEV_{\text{curr}} \Vert GEV_{\text{prev}})$\;
+        Store $\{s,\textit{chunk\_start},\textit{chunk\_end},c,\sigma,\mu,p\text{-value},\KL\}$ in \texttt{gev\_fit\_results}\;
+        \PrevGEV $\gets$ \CurrGEV\; 
+        Slide $[\textit{chunk\_start}, \textit{chunk\_end}]$ window forward by \Step~days\;
+    }
+}
+
+$\mathcal{C} \gets \{\text{distinct symbols in } \texttt{gev\_fit\_results} \mid \text{KL} > 0.5,~\textit{chunk\_end} > \text{January 1, 2020}\}$ \;
+\Return $\mathcal{C}$\;
+\end{algorithm}
+\end{singlespace}
+
+The below figures showcase a symbol, CZR, that is a member of both the distribution shift set and the extremal distribution shift subset as a visual reference for what constitutes distribution shifts in our test sets. Figure~\ref{fig:distshift_obs} provides the interday high, low, close, open prices of CZR in early 2020, from which we can observe a marked widening of the high/low prices circa February 20, 2020. Figure~\ref{fig:ev_shift_obs} shows how the fitted GEV distribution of CZR's $\log(H/L)$ prices changed when shifting the end date incrementally from February 20, 2020 to April 17, 2020.
+
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=\textwidth]{figures/real_distshift_viz.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Interday trade price (top) and volume (bottom) in CZR surrounding 02/20/2020, illustrating a potential distribution shift.}
+        \label{fig:distshift_obs}
+    \end{minipage}
+\end{figure} 
+
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=\textwidth]{figures/CZR_EV_distshift_viz.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{The shifting GEV distributions of CZR between 05/07/2019 and 04/17/2020.}
+        \label{fig:ev_shift_obs}
+    \end{minipage}
+\end{figure} 
+
+
+\subsection{Synthetic Data}
+To expand experimentation beyond the empirical datasets as well as control for specific market scenarios, synthetic datasets are introduced for supplemental analysis. In particular, we generate synthetic datasets to supplement the distribution shift and anomalous scenarios introduced in Subsection~\ref{subsec:empirical_data}. Further, we introduce a third scenario where anomalous values are injected into a time series undergoing distribution shift.
+
+For each of these sets, we utilize an AR(1)-GARCH(1,1) model to generate an initial synthetic series of differenced $\log(H/L)$ values, where the model is parameterized based on a real symbol, date-range pair that is considered to be relatively stable \textit{in extreme}. Recalling the methodology outlined in Algorithm~\ref{empirical_distshift_inextreme_algo} to determine symbols that had measurable distribution shifts in extreme during the COVID-19 market event, the selection of ``stable'' symbols and date ranges to use as a refernce for the syntheticly-generated series flips this process by looking for periods in a reference symbol's history where the fitted GEV distributions did not vary wildly within a sliding window. Once this stable period is determined, an AR(1)-GARCH(1,1) model is fit and used to generate a synthetic series that mimics the dynamics of the real series. This synthetic series is then used as the baseline for modification based on the desired phenomena to be studied, i.e. anomaly or distribution shift.
+
+Algorithm~\ref{synthetic_base_series_algo}, given below, breifly outlines the methodology for generating the base series. Subsequent algorithms within this subsection will provide the customization layers on top of the base series generated using this method.
+
+\begin{singlespace}
+\begin{algorithm}[H]
+\caption{Synthetic Base Series Generation}
+\label{synthetic_base_series_algo}
+
+\end{algorithm}
+\end{singlespace}
 
 
 
-%% remove the following and add your chapter text here
-\section{Introduction}
-\blindtext 
+\subsubsection{Anomaly Set}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=\textwidth]{figures/SimDataAnomaly.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Simulated differenced log(H/L) series with injected anomaly value (green) versus original maximum value (red).}
+        \label{fig:ev_shift_sim}
+    \end{minipage}
+\end{figure} 
+\subsubsection{Distribution Shift Set}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=\textwidth]{figures/SimDataDistShiftFigure.png}}
+    
+    % Caption limited to width of the image
+    \begin{minipage}{\textwidth}
+        \caption{Top left: Simulated differenced log(H/L) series with injected extreme values (green) versus original 5-day block maxima (red). Bottom left: Corresponding log(H/L) series without differencing. Right: GEV reference distributions, with the purple line representing the first distribution and the yellow line the second distribution.}
+        \label{fig:ev_shift_sim}
+    \end{minipage}
+\end{figure} 
+\subsubsection{Anomaly and Distribution Shift Set}
+
+\subsection{Summary}
+In closing, utilizing the various algorithms discussed in this section, we have curated five distinct datasets for evaluating the conformal models outlined in Section~\ref{sec_models}. A brief summary of each of the datasets, including the number of samples attributed to each, is given in Table~\ref{table:dataset_summary}, given below. 
+
+\begin{singlespacing}
+\begin{table}[H]
+\centering
+\caption{Summary of Datasets used in Model Evaluation}
+\label{table:dataset_summary}
+\begin{tabular}{|l | l | l | r|} 
+ \hline
+\# & Real/Synthetic & Market Condition & Count of (Symbol, Date) Pairs \\
+ \hline\hline
+1 & Real & Anomaly & 40 \\
+\hline
+2(a) & Real & Distribution Shift & 242 \\
+\hline
+2(b) & Real & Extremal Distribution Shift & 75 \\
+\hline
+3 & Synthetic & Anomaly & 70 \\
+\hline
+4 & Synthetic & Distribution Shift & 70 \\
+\hline
+5 & Synthetic & Anomaly \& Distribution Shift & 120 \\
+ \hline 
+\end{tabular}
+\end{table}
+\end{singlespacing}
+
+\section{Models}
+\label{sec_models}
+As introduced in Chapter~\ref{chap:chap-2}, our analysis will focus on the performance of conformal models against traditional linear models for time series on equities data. In particular, we are interested in the performance of \textit{online} conformal models in anomaly detection applications that would be suitable for market surveillance. In Subsection~\ref{subsection:conformity_scores}, we also introduced conformity scores that could be selected for the specific models. In this section, we will provide the specifications of each individual model explored in this thesis.
+
+\begin{singlespacing}
+\begin{table}[H]
+\centering
+\caption{Summary of Prediction Intervals for Base Models}
+\label{tab:model_intervals}
+\begin{tabular}{||l | r||} 
+ \hline
+ Model & $(1-\alpha) \cdot 100$\% Prediction Interval at $t+1$  \\ [0.5ex] 
+ \hline\hline
+ AR(1) & $\hat{y}_{t+1|t} \pm \phi(1-\alpha/2) \hat{\sigma}$ \\ 
+ \hline
+ AR(1)-GARCH(1,1) & $\hat{y}_{t+1|t} \pm F\!\left(1-\alpha/2 \right) \hat{\sigma}_{t+1|t}$  \\
+ \hline
+ Naive Conformal & $\hat{y}_{t+1|t} \pm q(\alpha) \cdot \hat{\sigma}_{t+1|t}$ \\
+ \hline
+ Online Conformal (ACI) & $\hat{y}_{t+1|t} \pm q(\alpha_t) \cdot \hat{\sigma}_{t+1|t}$, \ \ $\alpha_{t} = \alpha_{t-1} + \gamma (\alpha - \text{err}_{t-1})$  \\
+ \hline
+ DtACI & $\hat{y}_{t+1|t} \pm q(\alpha_t) \cdot \hat{\sigma}_{t+1|t}$, \ \ $\alpha_{t} = \alpha_{t-1} - \gamma \nabla_{\theta} \ell(\beta_{t-1}, \alpha_{t-1})$  \\ 
+ \hline
+\end{tabular}
+\end{table}
+\end{singlespacing}
+
+\section{Evaluation}
+The performance of each of the $n$ models discussed in Section~\ref{sec_models} will be assessed based on four main criteria: width, coverage, mean winkler interval (MWI) score, and the coverage width criterion (CWC) score, each of which will be defined in this section. Broadly, these metrics are used to measure the uncertainty of the model's prediction and the accuracy of the model's prediction intervals across each of the datasets. We also expand beyond these four metrics by tailoring our evaluation to the market event under investigation, i.e. anomaly or distribution shift.
 
 
-\section{Current approach}
-\blindtext\footnote{Hello, this is the first footnote with no indentation and single-spaced text. The spacing between two footnotes is also single-spaced.}
+The first two metrics are the most common for assessing the performance of interval models, mean width and coverage. The normalized mean width, defined below, measures the average length between the lower and upper bound of the prediction intervals generated by the model. We note the addition of the normalization factor, $1/R$, where $R$ denotes the range of the target variable. This normalization is necessary for model evaluation in aggregate given the symbols within our test sets have varying high-low price ranges. Going forward, we will simply refer to this metric as ``mean width''. 
+$$
+\text{(Normalized) Mean Width} = \frac{1}{n \cdot R} \sum_{i=1}^n |\hat{y}_i^{\text{up}} - \hat{y}_i^{\text{low}} |
+$$
+Coverage, on the other hand, quantifies how often the prediction intervals generated by the model encompass the true value, $y_i$. Typically, the empirical coverage, defined below, is compared against a target coverage, e.g. $(1-\alpha)$ where $\alpha$ is the miscoverage rate. For our analysis, we will generally use a miscoverage rate of $\alpha = 0.05$.
+ $$
+\text{Coverage} = \frac{1}{n} \sum_{i=1}^n \mathbb{1}_{y_i \in [\hat{y}_i^{\text{up}}, \hat{y}_i^{\text{low}}]}
+$$
+The mean width and coverage metrics, in combination, are therefore used to assess whether the interval model is both precise and accurate. A well-performing interval model would have both a low average interval length and an empirical coverage that is close to the desired coverage rate $1-\alpha$. However, when comparing multiple models simultaneously, it can often be difficult assess the tradeoff between the mean width and the coverage directly, as in some cases the gains in coverage usurp a slight increases in mean width. Hence, in order quantify this tradeoff, two additional scores are introduced: the Mean-Winkler Interval (MWI) score and the Coverage Width Critierion (CWC).  
 
-\subsection{Hypothesis statement}
-\blindtext\footnote{This is the second footnote.}
-
-
-\subsection{Experimental evidences}
-\blindtext
-
-
-\subsubsection{Data analysis}
-\blindtext
+The MWI score, given below, merges the mean width with a penalty term for observations that fall outside of the prediction intervals. This penalty term is based on the distance of the observation from the outside of the band in which it is most proximate and is scaled by $2/\alpha = 40$. Hence, this score is small when the prediction bands are small, on average, and good coverage is achieved. Notably, we normalize the sum using the range of the target variable, $R$, as we have done with the mean width.
+$$
+\text{MWI Score} =  \text{Mean Width}+ \frac{2}{\alpha \cdot R} \sum_{i=1}^n \max(0, y_i - \hat{y}_i^{\text{up}}) + \max(0, \hat{y}_i^{\text{low}} - y_i) \;\; \text{\cite{mwi_score_og} \cite{kuzborskij2025pointwiseconfidenceestimationnonlinear}}
+$$
+The second metric that combines information about both the coverage and mean width is the Coverage Width Criterion (CWC). Similar to the MWI score, the CWC penalizes predictions that fall outside of the model's prediction intervals. However, this is achieved using an exponential weight based on the difference between the empirical coverage and the desired coverage, $1-\alpha$, only if the empirical coverage is less than the desired coverage, as is specified by the indeicator function. Following the proposal in \cite{cwc_score_source}, we utilize $\eta = 50$ as the standard value to scale the penalty term.
+$$
+\text{CWC} = \text{Mean Width}\cdot \Big(1 + \mathbb{1} \{\text{Coverage} < (1-\alpha) \} \cdot e^{ -\eta (\text{Coverage} - (1-\alpha) ) } \Big) \;\; \text{\cite{cwc_score_source}}
+$$
+In addition to these four metrics, we will provide tailored analysis depending on the market event of interest. For the anomalous sets, we are interested in the frequency in which the labeled anomalous observation is detected by the model, or the rate at which the anomalous observation exceeds the prediction interval bands (\textit{anomaly detection rate}). Further, we can quantify the severity of the anomaly, as predicted by the model, via measuring the distance of the anomaly from the top of the prediction band (\textit{band distance}). The models which perform better on the anomaly detection task will have both high anomaly detection rates and large band distances. For both the anomaly and distribution shift sets, we are interested in a type of change point analysis where the mean width\footnote{For the anomalous set, the mean width before and after the anomalous point will be normalized against the range of the entire set of actual values sans the anomalous observation. The distribution shift sets will be normalized against the range of the entire set.} and coverage parameters will be examined before and after the anomalous event or before and after the point at which the distribution of the underlying data shifts. This analysis is conducted in order to quantify how ``reactionary'' the model is to sudden shifts in distribution or extreme events. Ideally, a well-performing model would not over-correct by increasing the length of the prediction intervals, thus affecting the mean width, nor would its empirical coverage degrade following the change point.

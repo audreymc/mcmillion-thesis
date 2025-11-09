@@ -105,7 +105,7 @@
 
 
 %%%% SECTION LEVELS and TOC APPEARANCE
-\def\NoTOCLevel{2}                          % no of levels showed in the table of contents
+\def\NoTOCLevel{3}                          % no of levels showed in the table of contents
 \def\TOCIndent{0 pt}                        % indentation in the list of figs and tables
 %% 3 levels mean: section to subsubsection.. decrease if you want to show less in TOC
 
@@ -160,11 +160,26 @@
 \usepackage{amsfonts,amssymb,amsmath,amsthm,autobreak,
     cancel,dsfont,mathtools,mathbbol,mathrsfs,siunitx,upgreek}
 
+% Define theorem environment
+\newtheoremstyle{upright}       % name
+  {3pt}                         % space above
+  {3pt}                         % space below
+  {\normalfont}                 % body font
+  {}                            % indent amount
+  {\bfseries}                   % theorem head font
+  {.}                           % punctuation after theorem head
+  { }                           % space after theorem head
+  {}                            % theorem head spec
+
+\theoremstyle{upright}
+\newtheorem{theorem}{Theorem}[section] 
+\newtheorem{proposition}{Proposition}[section]
 
 %%%% TABLE-RELATED PACKAGES
 \usepackage{booktabs,longtable,dcolumn,makecell,
     multicol,multirow,tabularx,xltabular,rotating}
 
+\usepackage[table]{xcolor}
 
 %%%% package for micro-typography (you can define more settings)
 %% see details here: https://www.khirevich.com/latex/microtype/
@@ -174,7 +189,7 @@
 
 %%%% BIBLIOGRAPHIC PACKAGE (change the style or other options if you need to)
 %% Nature style bibliography
-\usepackage[backend=biber, defernumbers=true, style=nature, maxnames=99,
+\usepackage[backend=biber, style=nature, maxnames=99,
      date=year, isbn=false, url=false, doi=true]{biblatex}
 
 %% APA style
